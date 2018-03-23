@@ -12,6 +12,7 @@ import android.widget.Button;
 import android.widget.EditText;
 import android.widget.Toast;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -73,11 +74,25 @@ public class MainActivity extends AppCompatActivity implements TextToSpeech.OnIn
         }
     }
 
+
+
     private void speakOut() {
 
         String text = txtText.getText().toString();
-
         tts.speak(text, TextToSpeech.QUEUE_FLUSH, null);
+        generateaudio(tts,text);
+
+    }
+
+    private void generateaudio(TextToSpeech tts,String text) {
+        File root = android.os.Environment.getExternalStorageDirectory();
+        File dir = new File(root.getAbsolutePath() + "/Downloaded_Audio");
+        dir.mkdirs();
+        File file = new File(dir, "myData.mp3");
+        Log.d("ravi",file.getAbsolutePath());
+
+            tts.synthesizeToFile(text,null,file,"tts");
+
     }
 
 }
