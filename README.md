@@ -1,2 +1,2 @@
 # HackFest18-Aawaz
-Source code for Aawaz app
+"Aawaz-App" for Blind Peoples
