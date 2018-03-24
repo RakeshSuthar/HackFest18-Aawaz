@@ -164,19 +164,19 @@ public class MainActivity extends AppCompatActivity implements CvCameraViewListe
         Imgproc.cvtColor(mRgba,mHsvMat,Imgproc.COLOR_RGB2HSV);
         Core.inRange(mHsvMat,lowerThreshold,upperThreshold,mMaskMat);
 
-        org.opencv.core.Size s1 = new org.opencv.core.Size(11,11);
+        org.opencv.core.Size s1 = new org.opencv.core.Size(5,5);
         org.opencv.core.Size s2 = new org.opencv.core.Size(3,3);
         org.opencv.core.Point p = new org.opencv.core.Point();
-
         Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE,s1, p);
+
         Imgproc.erode(mMaskMat,mMaskMat,new Mat());
         Imgproc.dilate(mMaskMat,mMaskMat,new Mat());
-        Imgproc.GaussianBlur(mMaskMat,mMaskMat,s2,0);
+        Imgproc.GaussianBlur(mMaskMat,mMaskMat,s2,1,1);
 
         Core.bitwise_and(mRgba,mRgba,mDilatedMat,mMaskMat);
 
         // Black and White
-        Imgproc.threshold(mDilatedMat,mDilatedMat,20,255,Imgproc.THRESH_BINARY);
+        Imgproc.threshold(mDilatedMat,mDilatedMat,20,250,Imgproc.THRESH_BINARY);
 
         Imgproc.cvtColor(mDilatedMat,mDilatedMat,Imgproc.COLOR_RGB2GRAY);
 
@@ -187,7 +187,7 @@ public class MainActivity extends AppCompatActivity implements CvCameraViewListe
 
 
 
-       double maxArea = 0;
+        double maxArea = 0;
         MatOfPoint max_contour = new MatOfPoint();
         Iterator<MatOfPoint> iterator = contours.iterator();
 
@@ -225,13 +225,13 @@ public class MainActivity extends AppCompatActivity implements CvCameraViewListe
 
         org.opencv.core.Rect rect = Imgproc.boundingRect(max_contour);
 
-       // mDilatedMat = mDilatedMat.submat(rect);
+        // mDilatedMat = mDilatedMat.submat(rect);
 
         //Imgproc.cvtColor(getHandContour,getHandContour,Imgproc.COLOR_GRAY2RGB);
         Imgproc.rectangle(mDilatedMat, rect.tl(), rect.br(), new Scalar(0, 255, 0), 2);
 
 
-       //Imgproc.drawContours(getHandContour,contours,-1,colorGreen,iLineThickness);
+        //Imgproc.drawContours(getHandContour,contours,-1,colorGreen,iLineThickness);
 
 
 
