@@ -53,7 +53,7 @@ public class MainActivity extends AppCompatActivity implements CvCameraViewListe
     Mat mRgbaF;
     Mat mRgbaT;
 
-    // Rakesh kumar suthar
+    // Pulkit SInghal
     private Mat mHsvMat;
     private Mat mMaskMat;
     private Mat mDilatedMat;
