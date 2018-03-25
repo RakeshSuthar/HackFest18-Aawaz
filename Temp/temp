@@ -1,0 +1,307 @@
+package com.example.rakesh.detect;
+
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.net.Uri;
+import android.os.Bundle;
+import android.support.v7.app.AppCompatActivity;
+import android.util.Log;
+import android.view.MenuItem;
+import android.view.SurfaceView;
+import android.view.WindowManager;
+
+import org.opencv.android.BaseLoaderCallback;
+import org.opencv.android.CameraBridgeViewBase;
+import org.opencv.android.CameraBridgeViewBase.CvCameraViewFrame;
+import org.opencv.android.CameraBridgeViewBase.CvCameraViewListener2;
+import org.opencv.android.JavaCameraView;
+import org.opencv.android.LoaderCallbackInterface;
+import org.opencv.android.OpenCVLoader;
+import org.opencv.android.Utils;
+import org.opencv.core.Core;
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+import org.opencv.core.MatOfKeyPoint;
+import org.opencv.core.MatOfPoint;
+import org.opencv.core.Point;
+import org.opencv.core.Scalar;
+import org.opencv.features2d.DMatch;
+import org.opencv.features2d.FeatureDetector;
+import org.opencv.highgui.Highgui;
+import org.opencv.imgproc.Imgproc;
+
+import java.io.FileNotFoundException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+
+public class MainActivity extends AppCompatActivity implements CvCameraViewListener2 {
+
+    // Used for logging success or failure messages
+    private static final String TAG = "OCVSample::Activity";
+    private static double mMinContourArea = 0.3;
+    // Rakesh kumar suthar
+    public MatOfKeyPoint objectKeyPoints;
+    public FeatureDetector featureDetector;
+    // These variables are used (at the moment) to fix camera orientation from 270degree to 0degree
+    Mat mRgba;
+    Mat mRgbaF;
+    Mat mRgbaT;
+    Mat temp1, temp2, temp3;
+    Match match;
+    Mat sceneImage;
+    private Mat mHsvMat;
+    private Mat mMaskMat;
+    private Mat mDilatedMat;
+    private Mat test;
+    private Mat hierarchy;
+    private Scalar CONTOUR_COLOR;
+    private LinkedList<DMatch> goodMatchesList;
+    private int channelCount = 3;
+    private int iLineThickness = 5;
+    private List<MatOfPoint> contours = new ArrayList<MatOfPoint>();
+    private List<MatOfPoint> mContours = new ArrayList<MatOfPoint>();
+    private List<MatOfPoint> mContours1 = new ArrayList<MatOfPoint>();
+    private List<MatOfPoint> mMaxContours = new ArrayList<MatOfPoint>();
+    private Scalar colorGreen = new Scalar(0, 255, 0);
+    // Loads camera view of OpenCV for us to use. This lets us see using OpenCV
+    private CameraBridgeViewBase mOpenCvCameraView;
+    // Used in Camera selection from menu (when implemented)
+    private boolean mIsJavaCamera = true;
+    private MenuItem mItemSwitchCamera = null;
+    private BaseLoaderCallback mLoaderCallback = new BaseLoaderCallback(this) {
+        @Override
+        public void onManagerConnected(int status) {
+            switch (status) {
+                case LoaderCallbackInterface.SUCCESS: {
+                    Log.i(TAG, "OpenCV loaded successfully");
+                    mOpenCvCameraView.enableView();
+
+                    // Rakesh kumar suthar
+                    mHsvMat = new Mat();
+                    sceneImage = new Mat();
+                    mMaskMat = new Mat();
+                    mDilatedMat = new Mat();
+                    hierarchy = new Mat();
+                    test = new Mat();
+                    temp1 = new Mat();
+                    temp2 = new Mat();
+                    temp3 = new Mat();
+                    objectKeyPoints = new MatOfKeyPoint();
+                    featureDetector = FeatureDetector.create(FeatureDetector.SURF);
+                    goodMatchesList = new LinkedList<DMatch>();
+                    CONTOUR_COLOR = new Scalar(255, 0, 0, 255);
+                }
+                break;
+                default: {
+                    super.onManagerConnected(status);
+                }
+                break;
+            }
+        }
+    };
+
+    public MainActivity() {
+        Log.i(TAG, "Instantiated new " + this.getClass());
+    }
+
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        Log.i(TAG, "called onCreate");
+        super.onCreate(savedInstanceState);
+        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+
+        setContentView(R.layout.activity_main);
+
+        match = new Match();
+
+        mOpenCvCameraView = (JavaCameraView) findViewById(R.id.show_camera_activity_java_surface_view);
+
+        mOpenCvCameraView.setVisibility(SurfaceView.VISIBLE);
+
+        mOpenCvCameraView.setCvCameraViewListener(this);
+
+        //Toast.makeText(MainActivity.this, (Uri.parse("android.resource://com.nikhil.material/" + R.mipmap.image1).toString()), Toast.LENGTH_SHORT).show();
+    }
+
+    @Override
+    public void onPause() {
+        super.onPause();
+        if (mOpenCvCameraView != null)
+            mOpenCvCameraView.disableView();
+    }
+
+    @Override
+    public void onResume() {
+        super.onResume();
+        if (!OpenCVLoader.initDebug()) {
+            Log.d(TAG, "Internal OpenCV library not found. Using OpenCV Manager for initialization");
+            OpenCVLoader.initAsync(OpenCVLoader.OPENCV_VERSION_2_4_11, this, mLoaderCallback);
+        } else {
+            Log.d(TAG, "OpenCV library found inside package. Using it!");
+            mLoaderCallback.onManagerConnected(LoaderCallbackInterface.SUCCESS);
+        }
+    }
+
+    public void onDestroy() {
+        super.onDestroy();
+        if (mOpenCvCameraView != null)
+            mOpenCvCameraView.disableView();
+    }
+
+    public void onCameraViewStarted(int width, int height) {
+
+        mRgba = new Mat(height, width, CvType.CV_8UC4);
+        mRgbaF = new Mat(height, width, CvType.CV_8UC4);
+        mRgbaT = new Mat(width, width, CvType.CV_8UC4);
+    }
+
+    public void onCameraViewStopped() {
+        mRgba.release();
+    }
+
+    public Mat onCameraFrame(CvCameraViewFrame inputFrame) {
+
+
+        mDilatedMat.release();
+        // TODO Auto-generated method stub
+        mRgba = inputFrame.rgba();
+        // Rotate mRgba 90 degrees
+        Core.transpose(mRgba, mRgbaT);
+        Imgproc.resize(mRgbaT, mRgbaF, mRgbaF.size(), 0, 0, 0);
+        Core.flip(mRgbaF, mRgba, 1);
+
+        // Rakesh Kumar Suthar
+
+        Scalar lowerThreshold = new Scalar(0, 48, 80); // skin color – lower hsv values
+        Scalar upperThreshold = new Scalar(20, 255, 255); // skin color – higher hsv values
+
+        Imgproc.cvtColor(mRgba, mHsvMat, Imgproc.COLOR_RGB2HSV);
+        Core.inRange(mHsvMat, lowerThreshold, upperThreshold, mMaskMat);
+
+        org.opencv.core.Size s1 = new org.opencv.core.Size(11, 11);
+        org.opencv.core.Size s2 = new org.opencv.core.Size(3, 3);
+        org.opencv.core.Point p = new org.opencv.core.Point();
+        Imgproc.getStructuringElement(Imgproc.MORPH_ELLIPSE, s1, p);
+
+        Imgproc.erode(mMaskMat, mMaskMat, new Mat());
+        Imgproc.dilate(mMaskMat, mMaskMat, new Mat());
+        Imgproc.GaussianBlur(mMaskMat, mMaskMat, s2, 0);
+
+        Core.bitwise_and(mRgba, mRgba, mDilatedMat, mMaskMat);
+
+        // Black and White
+        Imgproc.threshold(mDilatedMat, mDilatedMat, 20, 255, Imgproc.THRESH_BINARY);
+
+        // New Code
+        InputStream stream = null;
+        Uri uri = Uri.parse("android.resource://com.example.rakesh.detect/drawable/image1");
+        try {
+            stream = getContentResolver().openInputStream(uri);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        BitmapFactory.Options bmpFactoryOptions = new BitmapFactory.Options();
+        bmpFactoryOptions.inPreferredConfig = Bitmap.Config.ARGB_8888;
+
+        Bitmap bmp = BitmapFactory.decodeStream(stream, null, bmpFactoryOptions);
+        Utils.bitmapToMat(bmp, sceneImage);
+
+        //Matching with patterns
+        /*String temp = match.is_matched(mDilatedMat, sceneImage);
+
+        if (!temp.equals(null)) {
+            Toast.makeText(MainActivity.this, "Good", Toast.LENGTH_SHORT).show();
+        } else {
+            Log.e("Debug", "false");
+        }*/
+
+        /*Imgproc.cvtColor(mDilatedMat, temp1, Imgproc.COLOR_GRAY2RGB);
+        Imgproc.cvtColor(sceneImage, sceneImage, Imgproc.COLOR_GRAY2RGB);
+        mDilatedMat.convertTo(temp1, CvType.CV_32FC1);
+        sceneImage.convertTo(temp2, CvType.CV_32FC1);
+        mDilatedMat.reshape(sceneImage.cols(), sceneImage.rows());
+        //temp3.convertTo(temp3, CvType.CV_32FC1);
+
+
+        // / Create the result matrix
+        int result_cols = temp1.cols() - temp2.cols() + 1;
+        int result_rows = temp1.rows() - temp2.rows() + 1;
+        Mat result = new Mat();
+        //Mat result = new Mat(result_rows, result_cols, CvType.CV_32FC1);
+
+        // / Do the Matching and Normalize
+        Imgproc.matchTemplate(temp1, temp2, result, Imgproc.TM_CCOEFF_NORMED);
+        Core.normalize(result, result, 0, 1, Core.NORM_MINMAX, -1, new Mat());
+
+        // / Localizing the best match with minMaxLoc
+        Core.MinMaxLocResult mmr = Core.minMaxLoc(result);
+
+        Point matchLoc;
+        if (Imgproc.TM_CCOEFF_NORMED == Imgproc.TM_SQDIFF || Imgproc.TM_CCOEFF_NORMED == Imgproc.TM_SQDIFF_NORMED) {
+            matchLoc = mmr.minLoc;
+        } else {
+            matchLoc = mmr.maxLoc;
+        }
+
+        // / Show me what you got
+        Core.rectangle(temp1, matchLoc, new Point(matchLoc.x + temp2.cols(),
+                matchLoc.y + temp2.rows()), new Scalar(0, 255, 0));
+
+
+        //Imgproc.matchTemplate(temp1, temp2, temp3, Imgproc.TM_CCOEFF_NORMED);
+
+
+        //featureDetector.detect(temp1, objectKeyPoints);
+
+        /*MatOfKeyPoint objectDescriptors = new MatOfKeyPoint();
+        DescriptorExtractor descriptorExtractor = DescriptorExtractor.create(DescriptorExtractor.SURF);
+        descriptorExtractor.compute(mDilatedMat, objectKeyPoints, objectDescriptors);
+
+        /* Create the matrix for output image.
+        Mat outputImage = new Mat(mDilatedMat.rows(), mDilatedMat.cols(), Highgui.CV_LOAD_IMAGE_COLOR);
+        Scalar newKeypointColor = new Scalar(255, 0, 0);
+
+        Features2d.drawKeypoints(mDilatedMat, objectKeyPoints, outputImage, newKeypointColor, 0);
+
+        // Match object image with the scene image
+        MatOfKeyPoint sceneKeyPoints = new MatOfKeyPoint();
+        MatOfKeyPoint sceneDescriptors = new MatOfKeyPoint();
+        featureDetector.detect(sceneImage, sceneKeyPoints);
+        descriptorExtractor.compute(sceneImage, sceneKeyPoints, sceneDescriptors);
+
+        Mat matchoutput = new Mat(sceneImage.rows() * 2, sceneImage.cols() * 2, Highgui.CV_LOAD_IMAGE_COLOR);
+        Scalar matchestColor = new Scalar(0, 255, 0);
+
+        List<MatOfDMatch> matches = new LinkedList<MatOfDMatch>();
+        DescriptorMatcher descriptorMatcher = DescriptorMatcher.create(DescriptorMatcher.FLANNBASED);
+        descriptorMatcher.knnMatch(objectDescriptors, sceneDescriptors, matches, 2);
+
+        goodMatchesList.clear();
+
+        float nndrRatio = 0.7f;
+
+        for (int i = 0; i < matches.size(); i++) {
+            MatOfDMatch matofDMatch = matches.get(i);
+            DMatch[] dmatcharray = matofDMatch.toArray();
+            DMatch m1 = dmatcharray[0];
+            DMatch m2 = dmatcharray[1];
+
+            if (m1.distance <= m2.distance * nndrRatio) {
+                goodMatchesList.addLast(m1);
+
+            }
+        }
+
+        if (goodMatchesList.size() >= 7) {
+            Toast.makeText(MainActivity.this, "Good", Toast.LENGTH_SHORT).show();
+        } else {
+            Log.e("Debug", "False");
+        }*/
+
+        return mDilatedMat; // This function must return
+
+    }
+}
